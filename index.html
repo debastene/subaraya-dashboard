@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="id" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Dashboard analitik kota Subaraya: kemacetan, kualitas udara, dan keselamatan lalu lintas per zona." />
+    <title>Subaraya · Dashboard Kota</title>
+    <!-- Font Inter (default shadcn/ui) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script>
+      // Terapkan tema sedini mungkin supaya tidak ada "flash" warna saat halaman dimuat.
+      // Nilai tersimpan: "light" | "dark" | "system" (default: ikut sistem).
+      (function () {
+        try {
+          var stored = localStorage.getItem("subaraya-theme");
+          var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var isDark =
+            stored === "dark" || stored === "light"
+              ? stored === "dark"
+              : prefersDark;
+          document.documentElement.classList.toggle("dark", isDark);
+          document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+        } catch (e) {
+          /* localStorage bisa diblokir (mode privat) — abaikan saja */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

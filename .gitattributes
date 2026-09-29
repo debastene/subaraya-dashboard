@@ -1,0 +1,12 @@
+# Simpan semua berkas teks dengan akhir baris LF di repo maupun di working tree.
+# Menjaga diff tetap bersih saat berpindah antara Windows, macOS, dan CI (Vercel).
+* text=auto eol=lf
+
+# Berkas biner - jangan diutak-atik Git.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
