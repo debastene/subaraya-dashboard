@@ -38,6 +38,7 @@ Perintah lain:
 | `/kemacetan`    | Kemacetan      | KPI kecepatan & volume, donut kepadatan, kecepatan per jam, kecepatan vs volume per zona |
 | `/udara`        | Kualitas Udara | KPI PM2.5, bar PM2.5 per zona (warna ikut kategori), donut kategori jam, tren bulanan |
 | `/keselamatan`  | Keselamatan    | KPI kecelakaan & korban, kecelakaan per jam, kecelakaan & korban per zona      |
+| `/prediksi`     | Prediksi       | Perkiraan kecelakaan 24 jam & 7 hari ke depan dari model machine learning      |
 | `/peta`         | Peta Zona      | Peta OpenStreetMap, 4 penanda lingkaran, pemilih metrik, peringkat zona        |
 | `/data`         | Data           | Tabel per zona: cari, urutkan, paginasi, badge status, unduh CSV               |
 
@@ -139,6 +140,78 @@ node scripts/generate-mock.mjs src/data/dashboard.json
 
 ---
 
+## Halaman Prediksi (model machine learning)
+
+Halaman `/prediksi` menampilkan keluaran tiga model dari data scientist:
+
+| Model | Memprediksi |
+| ----- | ----------- |
+| `expected_accident_pipeline.joblib` | perkiraan **jumlah** kecelakaan pada satu jam |
+| `accident_occurrence_pipeline.joblib` | **peluang** ada kecelakaan pada jam itu |
+| `severe_accident_risk_pipeline.joblib` | **peluang** kecelakaan tergolong berat |
+
+### Kenapa model tidak dijalankan di dalam web
+
+Dashboard ini situs statis — tidak ada Python di sisi server, dan browser tidak
+bisa menjalankan scikit-learn. Untungnya tidak perlu: ketiga model hanya memakai
+fitur kalender dan kode zona sebagai masukan
+
+```
+zone_id, hour, day_of_week, day_of_month, month, is_weekend
+```
+
+sehingga keluarannya deterministik dan seluruh jawabannya bisa dihitung sekali
+di muka. `scripts/predict.py` menjalankan model, lalu menyimpan hasilnya sebagai
+tabel di `src/data/predictions.json`.
+
+Hasilnya: **473 MB berkas model menjadi 358 KB JSON**, tanpa perbedaan angka
+sama sekali dibanding memanggil model secara langsung.
+
+### Memperbarui prediksi
+
+Letakkan berkas `.joblib` di folder `models/` (folder ini diabaikan git karena
+ukurannya), lalu:
+
+```bash
+pip install scikit-learn pandas joblib
+python scripts/predict.py
+```
+
+Pilihan lain:
+
+```bash
+python scripts/predict.py --models "D:/model" --start 2027-01-01 --days 240
+```
+
+Default-nya menghitung 240 hari ke depan mulai hari ini. Kalau tanggal yang
+dibuka pengguna berada di luar rentang itu, halaman Prediksi menampilkan
+peringatan bahwa berkasnya perlu diperbarui — bukan diam-diam menampilkan
+angka yang salah.
+
+### Kelas `AccidentFeatureEngineer`
+
+Ketiga `.joblib` memanggil kelas custom bernama `AccidentFeatureEngineer`, tapi
+pickle hanya menyimpan namanya — bukan kodenya. Tanpa definisi kelas itu,
+`joblib.load()` gagal dengan `AttributeError`.
+
+`scripts/predict.py` sudah memuat rekonstruksi kelas tersebut. Isinya
+disimpulkan dari dua bukti di dalam model sendiri: daftar kolom pada
+`ColumnTransformer`, dan statistik `StandardScaler` yang cocok dengan kalender
+per jam biasa (selisih terbesar 0,005). Kalau data scientist mengirim kelas
+aslinya, ganti bagian itu dengan versi mereka lalu jalankan ulang skripnya.
+
+### Catatan keterbatasan dibuat otomatis
+
+`scripts/predict.py` juga memeriksa modelnya dan menyimpan hasilnya di
+`meta.diagnostics`. Halaman Prediksi membaca bagian itu untuk menampilkan
+catatan keterbatasan — misalnya ketika kurva 24 jam ternyata monoton, atau
+ketika model jumlah dan model peluang saling bertentangan.
+
+Tidak ada peringatan yang ditulis permanen di kode React: begitu modelnya
+diperbaiki dan skripnya dijalankan ulang, catatan itu hilang dengan sendirinya.
+
+---
+
 ## Kontrak data
 
 Bentuk lengkap `dashboard.json` didefinisikan di [`src/types.ts`](src/types.ts).
@@ -221,14 +294,21 @@ Hal-hal berikut sengaja dijaga di dalam kode maupun tampilan:
    dari rata-rata bulanan (tiap bulan berbobot sama). Untuk cakupan jam yang
    mirip tiap bulan, selisihnya dapat diabaikan. Pada “Seluruh periode”, yang
    dipakai adalah angka agregat yang persis.
+8. **Halaman Prediksi jelas-jelas berisi ramalan, bukan kejadian.** Angkanya
+   keluaran model statistik, diberi disclaimer di bagian atas halaman, dan
+   keterbatasan modelnya ditampilkan apa adanya — termasuk ketika model jumlah
+   dan model peluang saling bertentangan. Ketiga model hanya memakai waktu dan
+   kode zona, jadi tidak mencampur domain satu sama lain.
 
 ---
 
 ## Struktur folder
 
 ```
+models/                   # berkas .joblib dari data scientist (diabaikan git)
 scripts/
   aggregate.py            # CSV asli  -> src/data/dashboard.json  (pandas)
+  predict.py              # model .joblib -> src/data/predictions.json (sklearn)
   generate-mock.mjs       # Pembuat data contoh (Node, tanpa dependensi)
 src/
   components/
@@ -251,13 +331,15 @@ src/
   hooks/                  # use-dashboard, use-chart-colors, use-media-query, ...
   lib/
     metrics.ts            # Data + filter  ->  angka siap pakai
+    forecast.ts           # Pembacaan tabel prediksi model
     colors.ts             # Palet, ambang PM2.5, status zona
     format.ts             # Format angka & tanggal locale id-ID
     notes.ts              # Teks catatan kaki tentang cakupan data
     nav.ts                # Daftar menu (dipakai sidebar & pencarian)
     utils.ts              # cn(), mean(), sum(), clamp()
   data/
-    dashboard.json        # <- SATU-SATUNYA sumber angka
+    dashboard.json        # <- sumber angka historis
+    predictions.json      # <- hasil model, dibuat scripts/predict.py
     index.ts
   types.ts                # Kontrak data
   index.css               # Design token (CSS variable) + tema Leaflet

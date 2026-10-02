@@ -11,3 +11,7 @@ data_raw/*
 
 # Konfigurasi editor lokal
 .claude/
+
+# Berkas model dari data scientist - terlalu besar untuk git.
+# Hasil prediksinya ada di src/data/predictions.json.
+models/

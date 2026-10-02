@@ -2,6 +2,7 @@ import {
   LayoutDashboard,
   Map,
   ShieldAlert,
+  Sparkles,
   Table2,
   TrafficCone,
   Wind,
@@ -47,6 +48,13 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Keselamatan",
     description: "Kecelakaan dan korban tercatat",
     icon: ShieldAlert,
+    pillar: "aman",
+  },
+  {
+    to: "/prediksi",
+    label: "Prediksi",
+    description: "Perkiraan kecelakaan untuk jam dan hari ke depan",
+    icon: Sparkles,
     pillar: "aman",
   },
   {

@@ -159,3 +159,54 @@ export type RangeKey = "6m" | "12m" | "24m" | "all"
 
 /** Metrik yang bisa dipilih pada peta. */
 export type MapMetric = "pm25" | "speed" | "acc"
+
+// ---------------------------------------------------------------------------
+// Prediksi model machine learning (src/data/predictions.json)
+// ---------------------------------------------------------------------------
+
+/** Ketiga keluaran model dari data scientist. */
+export type PredictionMetric = "expected" | "occurrence" | "severe"
+
+/**
+ * Hasil pemeriksaan otomatis terhadap model, dihitung oleh scripts/predict.py.
+ *
+ * Dipakai halaman Prediksi untuk menampilkan catatan keterbatasan secara
+ * jujur. Karena nilainya berasal dari model, catatan itu hilang dengan
+ * sendirinya begitu modelnya diperbaiki — tidak ada peringatan yang
+ * ditulis permanen di dalam kode React.
+ */
+export interface PredictionDiagnostics {
+  /** true bila kurva 24 jam hanya naik atau hanya turun (tidak ada puncak jam sibuk). */
+  hour_monotonic?: boolean
+  /** Jam dengan prediksi tertinggi / terendah. */
+  hour_peak?: number
+  hour_low?: number
+  /** Selisih antar zona pada jam yang sama, dalam persen dari rata-rata. */
+  zone_spread_pct?: number
+  /** Korelasi antara model peluang dan 1 − e^(−λ) dari model jumlah. */
+  consistency_corr?: number
+  consistency_mae?: number
+  /** true bila banyak probabilitas menempel di 1,00 (ciri model kelewat hafal). */
+  occurrence_saturated?: boolean
+}
+
+export interface PredictionMeta {
+  /** Kapan berkas ini dihasilkan (ISO, UTC). */
+  generated_at: string
+  /** Timestamp untuk indeks ke-0 pada setiap deret. */
+  start: string
+  /** Panjang setiap deret; satu langkah = satu jam. */
+  hours: number
+  zones: ZoneCode[]
+  /** Nama estimator per metrik, mis. { expected: "PoissonRegressor" }. */
+  models: Partial<Record<PredictionMetric, string>>
+  feature_engineer?: string
+  diagnostics?: PredictionDiagnostics
+}
+
+/** Bentuk lengkap `src/data/predictions.json`. */
+export interface PredictionData {
+  meta: PredictionMeta
+  /** series[zona][metrik][i] = prediksi untuk jam ke-i sejak `meta.start`. */
+  series: Record<ZoneCode, Partial<Record<PredictionMetric, number[]>>>
+}

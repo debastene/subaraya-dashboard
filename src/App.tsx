@@ -14,6 +14,7 @@ const Kemacetan = React.lazy(() => import("@/pages/Kemacetan"))
 const Udara = React.lazy(() => import("@/pages/Udara"))
 const Keselamatan = React.lazy(() => import("@/pages/Keselamatan"))
 const Peta = React.lazy(() => import("@/pages/Peta"))
+const Prediksi = React.lazy(() => import("@/pages/Prediksi"))
 const DataPage = React.lazy(() => import("@/pages/DataPage"))
 
 /** Tampilan sementara selagi berkas halaman diunduh. */
@@ -72,6 +73,14 @@ export default function App() {
           element={
             <React.Suspense fallback={<PageLoading />}>
               <Keselamatan />
+            </React.Suspense>
+          }
+        />
+        <Route
+          path="/prediksi"
+          element={
+            <React.Suspense fallback={<PageLoading />}>
+              <Prediksi />
             </React.Suspense>
           }
         />
