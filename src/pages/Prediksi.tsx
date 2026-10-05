@@ -19,6 +19,7 @@ import {
   CalendarDays,
   Clock,
   Flame,
+  Gauge,
   Info,
   ShieldAlert,
   Sparkles,
@@ -42,6 +43,7 @@ import {
   resolveAnchor,
 } from "@/lib/forecast"
 import { useFilters } from "@/store/filters"
+import type { PredictionMetric } from "@/types"
 import { dashboardData } from "@/data"
 import { cn } from "@/lib/utils"
 
@@ -52,6 +54,13 @@ const MODEL_LABEL: Record<string, string> = {
   GaussianNB: "naive Bayes",
   LogisticRegression: "regresi logistik",
 }
+
+/** Urutan & judul blok evaluasi. */
+const EVAL_ROWS: [PredictionMetric, string][] = [
+  ["expected", "Perkiraan jumlah kecelakaan"],
+  ["occurrence", "Peluang ada kecelakaan"],
+  ["severe", "Risiko kecelakaan berat"],
+]
 
 function zoneName(code: string): string {
   return dashboardData.per_zone.find((z) => z.zone === code)?.name ?? code
@@ -64,6 +73,7 @@ export default function Prediksi() {
 
   const { meta } = predictionData
   const diag = meta.diagnostics ?? {}
+  const evaluation = meta.evaluation ?? { available: false }
 
   // Titik acuan "sekarang". Dihitung sekali per render halaman.
   const anchor = React.useMemo(() => resolveAnchor(), [])
@@ -572,6 +582,152 @@ export default function Prediksi() {
           </span>
         </div>
       </Card>
+
+      {/* ================= Evaluasi model ================= */}
+      <Card>
+        <div className="flex items-start gap-3 p-5 pb-3">
+          <span
+            aria-hidden
+            className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
+          >
+            <Gauge className="size-4" />
+          </span>
+          <div>
+            <h3 className="text-sm font-semibold leading-tight">
+              Seberapa bagus modelnya?
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Diukur pada data uji yang terpisah dari data latih, dibandingkan
+              dengan tebakan naif.
+            </p>
+          </div>
+        </div>
+
+        {!evaluation.available ? (
+          <p className="px-5 pb-5 text-xs leading-relaxed text-muted-foreground">
+            Model ini belum disertai angka evaluasi
+            {evaluation.reason ? ` (${evaluation.reason})` : ""}. Jalankan{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
+              python ml/train.py
+            </code>{" "}
+            untuk menghasilkannya, lalu{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
+              python scripts/predict.py
+            </code>
+            .
+          </p>
+        ) : (
+          <div className="space-y-3 px-5 pb-5">
+            {EVAL_ROWS.map(([key, title]) => {
+              const row = evaluation.models?.[key]
+              if (!row) return null
+              const mismatch = (evaluation.estimator_mismatch ?? []).includes(key)
+              const t = row.test ?? {}
+              const d = row.dummy_test ?? {}
+
+              return (
+                <div key={key} className="rounded-lg border border-border p-3.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-medium">{title}</p>
+                    <Badge variant="muted">{row.used_estimator}</Badge>
+                  </div>
+
+                  {mismatch ? (
+                    <p className="mt-2 flex items-start gap-1.5 text-xs text-cond-warn">
+                      <TriangleAlert
+                        className="mt-px size-3.5 shrink-0"
+                        aria-hidden
+                      />
+                      <span>
+                        Angka di bawah diukur pada{" "}
+                        <strong className="font-medium">
+                          {row.evaluated_estimator}
+                        </strong>
+                        , bukan pada model yang menghasilkan prediksi di halaman
+                        ini. Jadi ini belum menggambarkan mutu angka yang tampil.
+                      </span>
+                    </p>
+                  ) : null}
+
+                  <dl className="mt-2.5 flex flex-wrap gap-x-6 gap-y-1.5 text-xs">
+                    {t.mae != null ? (
+                      <Metric
+                        label="MAE"
+                        value={formatDecimal(t.mae, 4)}
+                        baseline={d.mae != null ? formatDecimal(d.mae, 4) : null}
+                      />
+                    ) : null}
+                    {t.rmse != null ? (
+                      <Metric
+                        label="RMSE"
+                        value={formatDecimal(t.rmse, 4)}
+                        baseline={d.rmse != null ? formatDecimal(d.rmse, 4) : null}
+                      />
+                    ) : null}
+                    {t.roc_auc != null ? (
+                      <Metric label="ROC-AUC" value={formatDecimal(t.roc_auc, 4)} />
+                    ) : null}
+                    {t.pr_auc != null ? (
+                      <Metric
+                        label="PR-AUC"
+                        value={formatDecimal(t.pr_auc, 4)}
+                        baseline={
+                          d.pr_auc != null ? formatDecimal(d.pr_auc, 4) : null
+                        }
+                      />
+                    ) : null}
+                    {t.base_rate != null ? (
+                      <Metric
+                        label="Base rate"
+                        value={formatPercent(t.base_rate * 100)}
+                      />
+                    ) : null}
+                  </dl>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {evaluation.available ? (
+          <div className="flex items-start gap-2 border-t border-border px-5 py-3 text-[11px] leading-relaxed text-muted-foreground">
+            <Info className="mt-px size-3.5 shrink-0" aria-hidden />
+            <span>
+              Sumber angka: {evaluation.source ?? "models/metrics.json"}.
+              {evaluation.split?.test
+                ? ` Data uji ${evaluation.split.test.rows.toLocaleString("id-ID")} baris, ${evaluation.split.test.start.slice(0, 10)} sampai ${evaluation.split.test.end.slice(0, 10)}.`
+                : ""}{" "}
+              Angka dalam kurung adalah tebakan naif sebagai pembanding —
+              model baru berguna kalau lebih baik dari itu.
+            </span>
+          </div>
+        ) : null}
+      </Card>
+    </div>
+  )
+}
+
+/** Satu metrik beserta pembanding naifnya. */
+function Metric({
+  label,
+  value,
+  baseline,
+}: {
+  label: string
+  value: string
+  baseline?: string | null
+}) {
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="tabular font-medium">
+        {value}
+        {baseline ? (
+          <span className="ml-1 font-normal text-muted-foreground">
+            (naif {baseline})
+          </span>
+        ) : null}
+      </dd>
     </div>
   )
 }

@@ -190,6 +190,49 @@ export interface PredictionDiagnostics {
   occurrence_saturated?: boolean
 }
 
+/** Nilai metrik untuk satu model pada satu bagian data. */
+export interface PredictionScores {
+  mae?: number
+  rmse?: number
+  accuracy?: number
+  roc_auc?: number | null
+  pr_auc?: number
+  log_loss?: number
+  brier?: number
+  base_rate?: number | null
+}
+
+export interface PredictionModelEvaluation {
+  /** Estimator yang metriknya diukur. */
+  evaluated_estimator?: string
+  /** Estimator yang benar-benar menghasilkan angka di halaman ini. */
+  used_estimator?: string
+  test?: PredictionScores
+  dummy_test?: PredictionScores
+}
+
+/**
+ * Angka evaluasi model, dibaca dari `models/metrics.json` oleh
+ * scripts/predict.py.
+ *
+ * `estimator_mismatch` berisi metrik yang diukur pada estimator BERBEDA
+ * dari yang dipakai untuk membuat prediksi — misalnya ketika berkas .joblib
+ * berasal dari percobaan lain. Dalam kasus itu angkanya tidak boleh dibaca
+ * sebagai mutu model yang sedang tampil.
+ */
+export interface PredictionEvaluation {
+  available: boolean
+  reason?: string
+  source?: string
+  generated_at?: string | null
+  cyclic_hour?: boolean
+  split?: Partial<
+    Record<"train" | "val" | "test", { rows: number; start: string; end: string }>
+  >
+  models?: Partial<Record<PredictionMetric, PredictionModelEvaluation>>
+  estimator_mismatch?: PredictionMetric[]
+}
+
 export interface PredictionMeta {
   /** Kapan berkas ini dihasilkan (ISO, UTC). */
   generated_at: string
@@ -202,6 +245,7 @@ export interface PredictionMeta {
   models: Partial<Record<PredictionMetric, string>>
   feature_engineer?: string
   diagnostics?: PredictionDiagnostics
+  evaluation?: PredictionEvaluation
 }
 
 /** Bentuk lengkap `src/data/predictions.json`. */

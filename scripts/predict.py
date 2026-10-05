@@ -248,6 +248,78 @@ def run_diagnostics(models: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Angka evaluasi model
+# ---------------------------------------------------------------------------
+
+# Nama berkas model -> kunci yang dipakai ml/train.py di metrics.json
+METRICS_KEY = {
+    "expected": "expected_accident",
+    "occurrence": "accident_occurrence",
+    "severe": "severe_accident_risk",
+}
+
+
+def read_evaluation(folder: Path, models: dict) -> dict:
+    """
+    Baca `metrics.json` yang dihasilkan ml/train.py, bila ada.
+
+    Selain menyalin angkanya, fungsi ini membandingkan estimator yang
+    DIEVALUASI dengan estimator yang benar-benar DIPAKAI untuk membuat
+    prediksi. Keduanya bisa berbeda kalau berkas .joblib berasal dari
+    percobaan lain — dan dalam kasus itu menampilkan metriknya di dashboard
+    justru menyesatkan. Perbedaannya dicatat supaya UI bisa memberi tahu.
+    """
+    path = folder / "metrics.json"
+    if not path.exists():
+        warn(
+            "metrics.json tidak ada di folder model — halaman Prediksi akan "
+            "menyatakan bahwa model ini belum punya angka evaluasi. "
+            "Jalankan ml/train.py untuk menghasilkannya."
+        )
+        return {"available": False, "reason": "metrics.json tidak ditemukan"}
+
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        warn(f"metrics.json tidak bisa dibaca: {exc}")
+        return {"available": False, "reason": "metrics.json tidak bisa dibaca"}
+
+    entries: dict = {}
+    mismatch: list[str] = []
+    for key, pipe in models.items():
+        used = type(pipe.named_steps["model"]).__name__
+        info = (raw.get("models") or {}).get(METRICS_KEY.get(key, key))
+        if not info:
+            continue
+        evaluated = info.get("estimator")
+        if evaluated and evaluated != used:
+            mismatch.append(key)
+        entries[key] = {
+            "evaluated_estimator": evaluated,
+            "used_estimator": used,
+            "test": (info.get("scores") or {}).get("test"),
+            "dummy_test": (info.get("scores") or {}).get("dummy_test"),
+        }
+
+    if mismatch:
+        for key in mismatch:
+            warn(
+                f"'{key}': metrik dihitung untuk {entries[key]['evaluated_estimator']}, "
+                f"tetapi prediksi memakai {entries[key]['used_estimator']}."
+            )
+
+    return {
+        "available": bool(entries),
+        "source": raw.get("source"),
+        "generated_at": raw.get("generated_at"),
+        "cyclic_hour": raw.get("cyclic_hour"),
+        "split": raw.get("split"),
+        "models": entries,
+        "estimator_mismatch": mismatch,
+    }
+
+
+# ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
 
@@ -308,6 +380,7 @@ def main() -> None:
         log(f"{key:11s} -> selesai (rentang {values.min():.3f} - {values.max():.3f})")
 
     diagnostics = run_diagnostics(models)
+    evaluation = read_evaluation(args.models, models)
 
     payload = {
         "meta": {
@@ -321,6 +394,7 @@ def main() -> None:
             },
             "feature_engineer": "rekonstruksi (lihat scripts/predict.py)",
             "diagnostics": diagnostics,
+            "evaluation": evaluation,
         },
         "series": series,
     }

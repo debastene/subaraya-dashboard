@@ -200,6 +200,18 @@ disimpulkan dari dua bukti di dalam model sendiri: daftar kolom pada
 per jam biasa (selisih terbesar 0,005). Kalau data scientist mengirim kelas
 aslinya, ganti bagian itu dengan versi mereka lalu jalankan ulang skripnya.
 
+### Angka evaluasi model
+
+Kalau folder model berisi `metrics.json` (dihasilkan `ml/train.py`),
+`scripts/predict.py` menyalinnya ke `predictions.json` dan halaman Prediksi
+menampilkannya bersama pembanding tebakan naif.
+
+Skrip juga membandingkan estimator yang **dievaluasi** dengan estimator yang
+benar-benar **dipakai** untuk membuat prediksi. Kalau berbeda — misalnya berkas
+`.joblib` berasal dari percobaan lain — perbedaannya ditandai, dan halaman
+menyatakan bahwa angka itu belum menggambarkan model yang sedang tampil.
+Tanpa `metrics.json`, halaman menyatakan modelnya belum punya angka evaluasi.
+
 ### Catatan keterbatasan dibuat otomatis
 
 `scripts/predict.py` juga memeriksa modelnya dan menyimpan hasilnya di
