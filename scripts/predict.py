@@ -113,8 +113,20 @@ class AccidentFeatureEngineer(BaseEstimator, TransformerMixin):
         ]
 
 
-# joblib mencari kelas ini di modul `__main__`. Didaftarkan secara eksplisit
-# supaya skrip tetap jalan walau diimpor dari tempat lain.
+# Kalau ml/features.py sudah ada (hasil perapian kode data scientist), kelas
+# resmi dari sana yang dipakai - bukan rekonstruksi di atas.
+_ML_DIR = ROOT / "ml"
+if (_ML_DIR / "features.py").exists():
+    sys.path.insert(0, str(_ML_DIR))
+    try:
+        from features import AccidentFeatureEngineer as _Official  # type: ignore
+        AccidentFeatureEngineer = _Official  # noqa: F811
+        print("  (memakai kelas resmi dari ml/features.py)")
+    except Exception:
+        pass  # tetap pakai rekonstruksi di atas
+
+# Model lama menyimpan kelas ini sebagai `__main__.AccidentFeatureEngineer`,
+# jadi didaftarkan ke sana supaya berkas .joblib versi lama tetap bisa dimuat.
 sys.modules["__main__"].AccidentFeatureEngineer = AccidentFeatureEngineer  # type: ignore[attr-defined]
 
 
@@ -139,6 +151,9 @@ def build_frame(index: pd.DatetimeIndex, zones: list[str]) -> pd.DataFrame:
     month = np.tile(index.month.to_numpy(), len(zones))
     return pd.DataFrame(
         {
+            # event_hour disertakan agar pipeline versi baru (yang menerima
+            # baris mentah) ikut jalan; pipeline versi lama mengabaikannya.
+            "event_hour": np.tile(index.to_numpy(), len(zones)),
             "zone_id": np.repeat(np.array(zones, dtype=object), n),
             "hour": hour,
             "day_of_week": dow,
