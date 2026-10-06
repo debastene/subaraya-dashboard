@@ -75,6 +75,13 @@ export default function Prediksi() {
   const diag = meta.diagnostics ?? {}
   const evaluation = meta.evaluation ?? { available: false }
 
+  // Metrik yang diukur pada estimator berbeda dari yang dipakai memprediksi.
+  // Disebut sekali di catatan kaki, bukan sebagai peringatan di tiap kartu.
+  const mismatchLabel = (evaluation.estimator_mismatch ?? [])
+    .map((k) => EVAL_ROWS.find(([key]) => key === k)?.[1].toLowerCase())
+    .filter(Boolean)
+    .join(" dan ")
+
   // Titik acuan "sekarang". Dihitung sekali per render halaman.
   const anchor = React.useMemo(() => resolveAnchor(), [])
 
@@ -621,7 +628,6 @@ export default function Prediksi() {
             {EVAL_ROWS.map(([key, title]) => {
               const row = evaluation.models?.[key]
               if (!row) return null
-              const mismatch = (evaluation.estimator_mismatch ?? []).includes(key)
               const t = row.test ?? {}
               const d = row.dummy_test ?? {}
 
@@ -631,23 +637,6 @@ export default function Prediksi() {
                     <p className="text-sm font-medium">{title}</p>
                     <Badge variant="muted">{row.used_estimator}</Badge>
                   </div>
-
-                  {mismatch ? (
-                    <p className="mt-2 flex items-start gap-1.5 text-xs text-cond-warn">
-                      <TriangleAlert
-                        className="mt-px size-3.5 shrink-0"
-                        aria-hidden
-                      />
-                      <span>
-                        Angka di bawah diukur pada{" "}
-                        <strong className="font-medium">
-                          {row.evaluated_estimator}
-                        </strong>
-                        , bukan pada model yang menghasilkan prediksi di halaman
-                        ini. Jadi ini belum menggambarkan mutu angka yang tampil.
-                      </span>
-                    </p>
-                  ) : null}
 
                   <dl className="mt-2.5 flex flex-wrap gap-x-6 gap-y-1.5 text-xs">
                     {t.mae != null ? (
@@ -699,6 +688,7 @@ export default function Prediksi() {
                 : ""}{" "}
               Angka dalam kurung adalah tebakan naif sebagai pembanding —
               model baru berguna kalau lebih baik dari itu.
+              {mismatchLabel ? ` Metrik ${mismatchLabel} diukur pada LogisticRegression.` : ""}
             </span>
           </div>
         ) : null}
